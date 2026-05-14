@@ -1,19 +1,51 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>com.github.bymaskeli53.kotlindesignpatternscreator</id>
-    <name>KotlinDesignPatternsCreator</name>
+    <name>Kotlin Design Patterns Creator</name>
     <vendor>bymaskeli53</vendor>
     <description><![CDATA[
-        <p><b>KotlinDesignPatternsCreator</b> is a repository that provides a pure template to make it easier to create a new plugin project.</p>
-        <p>The main goal of this template is to speed up the setup phase of plugin development for both new and experienced developers by preconfiguring the project scaffold and CI, linking to the proper documentation pages, and keeping everything organized.</p>
+        <p><b>Kotlin Design Patterns Creator</b> injects classic design patterns directly into the Kotlin class under your caret.</p>
+        <p>Right-click anywhere inside a Kotlin class body and pick a pattern (Builder, Factory, Observer, Strategy). The plugin uses PSI to mutate the file in place &mdash; no new files are generated, and a single undo reverts the whole transformation.</p>
+        <p>Works in IntelliJ IDEA and Android Studio.</p>
     ]]></description>
 
-    <depends>com.intellij.modules.platform</depends>
+    <idea-version since-build="233"/>
 
-    <resource-bundle>messages.MyBundle</resource-bundle>
+    <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.kotlin</depends>
+    <depends optional="true" config-file="plugin-android.xml">org.jetbrains.android</depends>
+
+    <resource-bundle>messages.PluginBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="com.github.bymaskeli53.kotlindesignpatternscreator.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
-        <postStartupActivity implementation="com.github.bymaskeli53.kotlindesignpatternscreator.startup.MyProjectActivity" />
+        <notificationGroup id="KotlinDesignPatternsCreator"
+                           displayType="BALLOON"
+                           bundle="messages.PluginBundle"
+                           key="notification.groupName"/>
     </extensions>
+
+    <actions>
+        <group id="KotlinDesignPatternsCreator.Group"
+               text="Kotlin Design Patterns Creator"
+               description="Inject design patterns into the current Kotlin class"
+               popup="true">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <action id="KDPC.Builder"
+                    class="com.github.bymaskeli53.kotlindesignpatternscreator.actions.BuilderAction"
+                    text="Builder"
+                    description="Generate a nested Builder + private constructor"/>
+            <action id="KDPC.Factory"
+                    class="com.github.bymaskeli53.kotlindesignpatternscreator.actions.FactoryAction"
+                    text="Factory"
+                    description="Generate Type enum, stub implementations, and create() factory"/>
+            <action id="KDPC.Observer"
+                    class="com.github.bymaskeli53.kotlindesignpatternscreator.actions.ObserverAction"
+                    text="Observer"
+                    description="Generate Observer interface, observer list, and notify methods"/>
+            <action id="KDPC.Strategy"
+                    class="com.github.bymaskeli53.kotlindesignpatternscreator.actions.StrategyAction"
+                    text="Strategy"
+                    description="Extract a method as a Strategy with delegating implementation"/>
+        </group>
+    </actions>
 </idea-plugin>

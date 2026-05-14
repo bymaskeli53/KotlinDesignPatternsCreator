@@ -1,0 +1,6 @@
+<!-- Optional dependency descriptor for org.jetbrains.android.
+     Loaded only when Android Studio (or the Android plugin) is present.
+     No Android-specific extensions are required today; this file exists
+     so the optional <depends> entry resolves cleanly. -->
+<idea-plugin>
+</idea-plugin>
