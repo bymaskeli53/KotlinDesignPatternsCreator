@@ -5,13 +5,19 @@ import com.github.bymaskeli53.kotlindesignpatternscreator.psi.PsiHelper
 import com.github.bymaskeli53.kotlindesignpatternscreator.psi.getOrCreateBody
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.project.Project
+import org.jetbrains.kotlin.psi.KtBlockExpression
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtDeclaration
+import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtPsiFactory
 
 object ObserverGenerator {
 
-    fun apply(project: Project, ktClass: KtClass) {
+    fun apply(
+        project: Project,
+        ktClass: KtClass,
+        methodsToNotify: List<KtNamedFunction> = emptyList()
+    ) {
         val className = ktClass.name ?: return
         val observerName = "${className}Observer"
 
@@ -24,7 +30,7 @@ object ObserverGenerator {
 
         val factory = KtPsiFactory(project)
         val observerInterface = factory.createClass(
-            "fun interface $observerName {\n    fun onChanged(data: Any)\n}"
+            "fun interface $observerName {\n    fun onChanged()\n}"
         )
         val observersField = factory.createProperty(
             "private val observers = mutableListOf<$observerName>()"
@@ -36,7 +42,7 @@ object ObserverGenerator {
             "fun removeObserver(observer: $observerName) {\n    observers.remove(observer)\n}"
         )
         val notifyFn = factory.createFunction(
-            "private fun notifyObservers(data: Any) {\n    observers.forEach { it.onChanged(data) }\n}"
+            "private fun notifyObservers() {\n    observers.forEach { it.onChanged() }\n}"
         )
 
         val body = ktClass.getOrCreateBody(factory)
@@ -52,7 +58,45 @@ object ObserverGenerator {
         insert(removeFn)
         insert(notifyFn)
 
+        methodsToNotify.forEach { fn -> appendNotifyCall(factory, fn) }
+
         PsiHelper.reformat(ktClass)
         PsiHelper.notify(project, PluginBundle["notification.success", "Observer"], NotificationType.INFORMATION)
+    }
+
+    private fun appendNotifyCall(factory: KtPsiFactory, fn: KtNamedFunction) {
+        val notifyCall = factory.createExpression("notifyObservers()")
+        val existingBody = fn.bodyExpression
+        when {
+            existingBody is KtBlockExpression -> {
+                val rBrace = existingBody.rBrace
+                if (rBrace != null) {
+                    existingBody.addBefore(notifyCall, rBrace)
+                } else {
+                    existingBody.add(notifyCall)
+                }
+            }
+            existingBody != null -> {
+                // Expression body (e.g. `fun foo() = bar()`) — convert to a block body that
+                // returns the original value (or runs it) and then notifies.
+                val returnType = fn.typeReference?.text
+                val original = existingBody.text
+                val newBlockText = if (returnType == null || returnType == "Unit") {
+                    "{\n    $original\n    notifyObservers()\n}"
+                } else {
+                    "{\n    val result = $original\n    notifyObservers()\n    return result\n}"
+                }
+                val newBlock = factory.createBlock(
+                    newBlockText.trim().removePrefix("{").removeSuffix("}").trim()
+                )
+                existingBody.replace(newBlock)
+                fn.equalsToken?.delete()
+            }
+            else -> {
+                // Abstract / no body — give it a block body that just notifies.
+                val newBlock = factory.createBlock("notifyObservers()")
+                fn.add(newBlock)
+            }
+        }
     }
 }
