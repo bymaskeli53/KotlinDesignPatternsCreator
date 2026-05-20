@@ -224,4 +224,4 @@ The build targets `since-build = 233` and compiles against the IntelliJ Platform
 
 ## License
 
-Released under the [MIT License](https://opensource.org/licenses/MIT).
+Released under the [MIT License](LICENSE). © 2026 Muhammet Gündoğar.
