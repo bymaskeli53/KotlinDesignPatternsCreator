@@ -2,61 +2,79 @@ package com.github.bymaskeli53.kotlindesignpatternscreator.generators
 
 import com.github.bymaskeli53.kotlindesignpatternscreator.PluginBundle
 import com.github.bymaskeli53.kotlindesignpatternscreator.psi.PsiHelper
-import com.github.bymaskeli53.kotlindesignpatternscreator.psi.companionOrNull
 import com.github.bymaskeli53.kotlindesignpatternscreator.psi.getOrCreateBody
 import com.github.bymaskeli53.kotlindesignpatternscreator.psi.hasNestedClassNamed
-import com.github.bymaskeli53.kotlindesignpatternscreator.psi.primaryConstructorProperties
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.psi.KtClass
-import org.jetbrains.kotlin.psi.KtObjectDeclaration
+import org.jetbrains.kotlin.psi.KtParameter
 import org.jetbrains.kotlin.psi.KtPsiFactory
 
 object BuilderGenerator {
 
-    fun apply(project: Project, ktClass: KtClass) {
+    fun apply(
+        project: Project,
+        ktClass: KtClass,
+        required: List<KtParameter>,
+        optional: List<KtParameter>
+    ) {
         val className = ktClass.name ?: return
 
-        if (ktClass.hasNestedClassNamed("Builder") || ktClass.companionOrNull()?.builderFunctionExists() == true) {
+        if (ktClass.hasNestedClassNamed("Builder")) {
             PsiHelper.warn(project, PluginBundle["warn.alreadyApplied", "Builder"])
             return
         }
 
-        val props = ktClass.primaryConstructorProperties()
-        if (props.isEmpty()) {
-            PsiHelper.warn(project, PluginBundle["warn.noProperties"])
-            return
-        }
-
         val factory = KtPsiFactory(project)
+        val optionalSet = optional.toSet()
 
-        // 1. Make primary constructor private by replacing it with an explicit
-        //    `private constructor(...)` form, preserving original parameter text.
+        // 1. Rebuild primary constructor: private + optional params become nullable.
         val existingPrimary = ktClass.primaryConstructor
         if (existingPrimary != null) {
-            val paramsText = ktClass.primaryConstructorParameters.joinToString(", ") { it.text }
+            val paramsText = ktClass.primaryConstructorParameters.joinToString(", ") { p ->
+                val valVar = when {
+                    p.isMutable -> "var "
+                    p.hasValOrVar() -> "val "
+                    else -> ""
+                }
+                val origType = p.typeReference?.text ?: "Any"
+                val type = if (p in optionalSet && !origType.endsWith("?")) "$origType?" else origType
+                "$valVar${p.name}: $type"
+            }
             val newCtor = factory.createPrimaryConstructor("private constructor($paramsText)")
             existingPrimary.replace(newCtor)
         }
 
-        // 2. Build the inner Builder class.
+        // 2. Build the public Builder class — callers invoke it as `Person.Builder(...)`.
         val builderText = buildString {
-            appendLine("class Builder {")
-            props.forEach { p ->
-                val type = p.typeReference?.text ?: "Any"
-                appendLine("    private var ${p.name}: $type? = null")
+            val builderCtorParams = required.joinToString(", ") { p ->
+                "private val ${p.name}: ${p.typeReference?.text ?: "Any"}"
             }
-            appendLine()
-            props.forEach { p ->
-                val type = p.typeReference?.text ?: "Any"
-                appendLine("    fun ${p.name}(${p.name}: $type) = apply { this.${p.name} = ${p.name} }")
+            if (builderCtorParams.isNotEmpty()) {
+                appendLine("class Builder($builderCtorParams) {")
+            } else {
+                appendLine("class Builder {")
             }
-            appendLine()
+
+            optional.forEach { p ->
+                val origType = p.typeReference?.text ?: "Any"
+                val nullableType = if (origType.endsWith("?")) origType else "$origType?"
+                appendLine("    private var ${p.name}: $nullableType = null")
+            }
+            if (optional.isNotEmpty()) appendLine()
+
+            optional.forEach { p ->
+                val setterType = p.typeReference?.text ?: "Any"
+                appendLine("    fun ${p.name}(${p.name}: $setterType) = apply { this.${p.name} = ${p.name} }")
+            }
+            if (optional.isNotEmpty()) appendLine()
+
             appendLine("    fun build(): $className {")
             appendLine("        return $className(")
-            props.forEachIndexed { i, p ->
-                val sep = if (i < props.size - 1) "," else ""
-                appendLine("            ${p.name} = requireNotNull(${p.name}) { \"${p.name} is required\" }$sep")
+            val allProps = ktClass.primaryConstructorParameters
+            allProps.forEachIndexed { i, p ->
+                val sep = if (i < allProps.size - 1) "," else ""
+                appendLine("            ${p.name} = ${p.name}$sep")
             }
             appendLine("        )")
             appendLine("    }")
@@ -68,27 +86,7 @@ object BuilderGenerator {
         val rBrace = body.rBrace
         if (rBrace != null) body.addBefore(builderClass, rBrace) else body.add(builderClass)
 
-        // 3. Add or update companion object with builder() factory.
-        val existingCompanion = ktClass.companionOrNull()
-        if (existingCompanion != null) {
-            val builderFn = factory.createFunction("fun builder() = Builder()")
-            val companionBody = existingCompanion.body
-            if (companionBody?.rBrace != null) {
-                companionBody.addBefore(builderFn, companionBody.rBrace)
-            } else {
-                existingCompanion.add(builderFn)
-            }
-        } else {
-            val companionObj = factory.createCompanionObject(
-                "companion object {\n    fun builder() = Builder()\n}"
-            )
-            if (rBrace != null) body.addBefore(companionObj, rBrace) else body.add(companionObj)
-        }
-
         PsiHelper.reformat(ktClass)
         PsiHelper.notify(project, PluginBundle["notification.success", "Builder"], NotificationType.INFORMATION)
     }
-
-    private fun KtObjectDeclaration.builderFunctionExists(): Boolean =
-        declarations.any { it.name == "builder" }
 }
