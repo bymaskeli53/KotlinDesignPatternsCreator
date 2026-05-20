@@ -2,8 +2,7 @@
 <idea-plugin>
     <id>com.github.bymaskeli53.kotlindesignpatternscreator</id>
     <name>Kotlin Design Patterns Creator</name>
-    <vendor>bymaskeli53</vendor>
-    <description><![CDATA[
+    <vendor email="muhammetemingundogar53@gmail.com" url="https://github.com/bymaskeli53">Muhammet Gündoğar</vendor>    <description><![CDATA[
         <p><b>Kotlin Design Patterns Creator</b> injects classic design patterns directly into the Kotlin class under your caret.</p>
         <p>Right-click anywhere inside a Kotlin class body and pick a pattern (Builder, Factory, Observer, Strategy). The plugin uses PSI to mutate the file in place &mdash; no new files are generated, and a single undo reverts the whole transformation.</p>
         <p>Works in IntelliJ IDEA and Android Studio.</p>
