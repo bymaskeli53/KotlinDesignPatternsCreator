@@ -24,6 +24,12 @@ intellijPlatform {
             untilBuild = provider { null }
         }
     }
+    pluginVerification {
+        ides {
+            // Android Studio Meerkat (2024.3.1, build 243.x) — K2-capable platform.
+            create("AI", "2024.3.1.14")
+        }
+    }
 }
 
 dependencies {

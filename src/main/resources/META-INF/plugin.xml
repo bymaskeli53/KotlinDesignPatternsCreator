@@ -23,6 +23,10 @@
                            key="notification.groupName"/>
     </extensions>
 
+    <extensions defaultExtensionNs="org.jetbrains.kotlin">
+        <supportsKotlinPluginMode supportsK2="true"/>
+    </extensions>
+
     <actions>
         <group id="KotlinDesignPatternsCreator.Group"
                text="Kotlin Design Patterns Creator"
